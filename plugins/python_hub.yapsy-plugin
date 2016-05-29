@@ -1,0 +1,9 @@
+
+[Core]
+Name = python_hub
+Module = python_hub
+
+[Documentation]
+Author = Various
+Version = 0.1
+Description = hub for interaction with 3rd party apps
