@@ -12,24 +12,22 @@ class Filter_Test():
 	buffer_holder = []
 	first_buffer = False
 
-	#set up canvas for fft
+	#SETUP
 	fig = plt.figure()
-	fig,ax = fig.add_subplot(1,1)
-	ax.hold = True
+	ax = fig.add_subplot(111)
+	plt.ylim([0,50])
+	plt.title('Magnitude spectrum of the signal')
+	plt.xlabel('Frequency (Hz)')
+	plt.ylabel('Amplitude')
+	# plt.yscale('log') #log scale for the y axis
 	f=np.linspace(0,N-1,N)*fs_Hz/N #the y axis
 	zeros = np.zeros(N) #the x axis. initially zero
-
-	rw = randomwalk()
-	f,zeros = rw.next()
-
-	plt.show(False)
-	plt.draw()
-
-	background = fig.canvas.copy_from_bbox(ax.bbox)
-
-	points = ax.plot(f,zeros)
-
-
+	zeros[0] = 1
+	li, = ax.plot(f[0:60],zeros[0:60])
+	fig.canvas.draw()
+	plt.ion()
+	plt.show()
+	
 
 
 
@@ -40,8 +38,7 @@ class Filter_Test():
 	# print(zeros)
 	# #plot the graph initially
 	# li, = ax.plot(f[0:60], zeros[0:60])
-	# plt.title('Magnitude spectrum of tthe signal')
-	# plt.xlabel('Frequency (Hz)')
+
 
 
 
@@ -57,6 +54,7 @@ class Filter_Test():
 
 	def file_input(self):
 		channel_data = []
+		time_data = []
 		with open('sample.txt', 'r') as file:
 			reader = csv.reader(file, delimiter=',')
 			next(file)
@@ -68,16 +66,17 @@ class Filter_Test():
 				channel_data.append(line[1])
 		print("EEG Time: ", len(channel_data)/250)
 		start = time.time()
+		i=0
 		for sample in channel_data:
-			time.sleep(0.004)
+			i+=1
+			end = time.time()
+			print("EEG TIME: ", i/250, " SECONDS")
+			print("Real time: ",end-start)
 			if self.first_buffer is False:
 				self.init_buffer(float(sample))
 			else:
 				self.sample_buffer(float(sample))
-
-		end = time.time()
 		print("EEG Time: ", len(channel_data)/250)
-		print("Python time: ",end-start)
 
 	def init_buffer(self,sample):
 		buffer_holder = self.buffer_holder
@@ -88,8 +87,6 @@ class Filter_Test():
 			self.first_buffer = True
 
 	def sample_buffer(self, sample):
-		# Terrible workaround to create a np array for the channel data
-		print(self.buffer_holder)
 		self.buffer_holder = np.delete(self.buffer_holder, 0)
 		self.buffer_holder = np.append(self.buffer_holder,sample)
 		self.processing(np.asarray(self.buffer_holder))
@@ -101,7 +98,7 @@ class Filter_Test():
 		#    			FILTERING 				   #
 		############################################
 		############################################
-		print(channel_buffer)
+		# print(channel_buffer)
 		N = 250 # number of samples we are dealing with
 
 		#############
@@ -143,8 +140,7 @@ class Filter_Test():
 		####################
 		# FFT
 		###################
-		print("why")
-		# fft1 = np.fft.fft(bandpassed_signal)
+		fft1 = np.fft.fft(bandpassed_signal)/N #fft computation and normalization
 		# # plotting the fft of the filtered signal
 		# # f=np.linspace(0,N-1,N)*fs_Hz/N
 		# # self.fftplot.plt.plot(f[0:60], abs(fft1[0:60]))
@@ -154,9 +150,9 @@ class Filter_Test():
 		# self.fig.canvas.draw()
 		# print("where is the plot")
 
-		self.fig.canvas.restore_region(self.background)
-		self.ax.draw_artist(points)
-
+		self.li.set_ydata(fft1[0:60])
+		self.fig.canvas.show()
+		plt.pause(0.00000001)
 test = Filter_Test()
 N = 250
 fs_Hz = 250
