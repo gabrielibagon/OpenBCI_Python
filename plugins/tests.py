@@ -1,56 +1,51 @@
 import numpy as np
-import matplotlib.pyplot as plt
+import pyqtgraph as pg
+from pyqtgraph.Qt import QtGui, QtCore
 from scipy import signal, fft
 
 import csv
 import time
 import sys
 
-class Filter_Test():
+class Plot():
+	'Class used to plot EEG data in real time'
+
+	def __init__():
+		#pyqtgraph setup
+		app = QtGui.QApplication([]) #initilizes Qt
+		w = QtGui.QWidget()
+		layout = QtGui.QGridLayout()
+		w.setLayout(layout)
+		# plotWidget = pg.plot(x=f[0:60], y=zeros[0:60])
+		plotWidget.setLabel('left','Amplitude','uV')
+		plotWidget.setLabel('bottom','Frequency','Hz')
+
+	def update_plot():
+
+
 	N = 250
 	fs_Hz = 250
 	buffer_holder = []
 	first_buffer = False
 
 	#SETUP
-	fig = plt.figure()
-	ax = fig.add_subplot(111)
-	plt.ylim([0,50])
-	plt.title('Magnitude spectrum of the signal')
-	plt.xlabel('Frequency (Hz)')
-	plt.ylabel('Amplitude')
-	# plt.yscale('log') #log scale for the y axis
 	f=np.linspace(0,N-1,N)*fs_Hz/N #the y axis
 	zeros = np.zeros(N) #the x axis. initially zero
-	zeros[0] = 1
-	li, = ax.plot(f[0:60],zeros[0:60])
-	fig.canvas.draw()
-	plt.ion()
-	plt.show()
-	
-
-
-
-
-	# f=np.linspace(0,N-1,N)*fs_Hz/N #the y axis
-	# zeros = np.zeros(N) #the x axis. initially zeros
-	# print(f)
-	# print(zeros)
-	# #plot the graph initially
-	# li, = ax.plot(f[0:60], zeros[0:60])
-
-
-
-
-	# fftplot = plt.plot(f[0:60],zeros)
-	# fftfig = plt.figure()
-	# plt.show()
-
+	print("Main window:")
+	app.exec_()
+	time.sleep(1)
 
 	def __init__(self):
 		print("initializing..")
+		self.fs_Hz = 250 #sample rate in Hz
 
 
+class Streamer:
+	'Streamer object to simulate EEG data streaming'
+
+	def __init__(self,fs_Hz,processing):
+		self.fs_Hz = fs_hz
+		self.processing = processing
 
 	def file_input(self):
 		channel_data = []
@@ -60,9 +55,6 @@ class Filter_Test():
 			next(file)
 			i=0
 			for line in reader:
-				# print(line[1])
-				# print(i)
-				# i+=1
 				channel_data.append(line[1])
 		print("EEG Time: ", len(channel_data)/250)
 		start = time.time()
@@ -91,70 +83,58 @@ class Filter_Test():
 		self.buffer_holder = np.append(self.buffer_holder,sample)
 		self.processing(np.asarray(self.buffer_holder))
 
+class Filters:
+	'Class containing EEG filtering and analysis tools' 
 
-	def processing(self,channel_buffer):
-		############################################
-		############################################
-		#    			FILTERING 				   #
-		############################################
-		############################################
-		# print(channel_buffer)
-		N = 250 # number of samples we are dealing with
+	#To use, instantiate the class with parameters specifying the type of filter and analysisf.
+	#Then, call the Filters.data parameter in order to then get the filtered data
 
-		#############
-		# ANALYZE THE FILTERS USING signal.freqz
-		#
-		# -notch
-		# -bandpass
 
-		#############
-		# IIR NOTCH FILTER
-		#
-		# 60 Hz notch filter
-		# Sample Rate = 250 Hz
-		notch_stop_Hz = np.array([59.0,61.0])
-		b, a = signal.butter(2,notch_stop_Hz/(fs_Hz / 2.0), 'bandstop')
+	def __init__(self,data,fs_Hz,filter_types):
+		self.fs_Hz = fs_Hz #setting the sample rate
+		self.data = data #the current data being processed
+		
+		#determine which filters were called
+		for type in filters:
+			if type is "fft":
+				#notch and bandpass are pre-requisites for fft
+				notch_filter(self,data)
+				bandpass_filter(self,data)
+				fft(self,data)
+				break #no more filters are needed if fft is performed
+			elif type is "notch":
+				notch_filter(self,data)
+			elif type is "bandpass":
+				bandpass_filter(self,data)
+
+
+	def notch_filter(self,data,notch_Hz=60):
+		notch_Hz = np.array([float(notch_Hz - 1.0), float(notch_Hz + 1.0)])
+		b, a = signal.butter(2,notch_Hz/(self.fs_Hz / 2.0), 'bandstop')
 
 		#apply the filter to the stream
-		# b,a = output of signa.butter [the numerator and denominator coefficients of the filter]
-		# x = input array [the stream]
-		notched_signal = signal.lfilter(b,a,channel_buffer)
+		self.data = signal.lfilter(b,a,data)
 
 
-		# ##############
-		# # BANDPASS FILTER
-		# # Bandpass for 1-50Hz
-		low_cut = 5  #low cut Hz
-		high_cut = 25 #high cut Hz
+	def bandpass_filter(self,data,low_cut,high_cut):
 		bandpass_frequencies = np.array([low_cut, high_cut])
-		b,a = signal.butter(2, bandpass_frequencies/(fs_Hz / 2.0), 'bandpass')
-		bandpassed_signal = signal.lfilter(b,a,channel_buffer)
+		b,a = signal.butter(2, bandpass_frequencies/(self.fs_Hz / 2.0), 'bandpass')
+		
+		#apply filter to stream, update data with filtered signal
+		self.data = signal.lfilter(b,a,data)
 
 
-		# ####################
-		# # Hanning Window
-		# # aka a hanning taper. This is a filter that tries to taper the data to zero at the edges
-		# # 
-		# # window = signal.hann()
+	####################
+	# Hanning Window
+	# aka a hanning taper. This is a filter that tries to taper the data to zero at the edges
+	# 
+	# window = signal.hann()
 
-		####################
-		# FFT
-		###################
-		fft1 = np.fft.fft(bandpassed_signal)/N #fft computation and normalization
-		# # plotting the fft of the filtered signal
-		# # f=np.linspace(0,N-1,N)*fs_Hz/N
-		# # self.fftplot.plt.plot(f[0:60], abs(fft1[0:60]))
-		# self.li.set_ydata(fft1[0:60])
-		# self.ax.relim() 
-		# self.ax.autoscale_view(True,True,True)
-		# self.fig.canvas.draw()
-		# print("where is the plot")
+	def fft(self,data):
+		self.data = np.fft.fft(data)/(self.fs_Hz) #fft computation and normalization
 
-		self.li.set_ydata(fft1[0:60])
-		self.fig.canvas.show()
-		plt.pause(0.00000001)
-test = Filter_Test()
-N = 250
-fs_Hz = 250
 
+
+test = Filters()
+data = test.data()
 test.file_input()
