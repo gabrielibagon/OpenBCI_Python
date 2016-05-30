@@ -6,46 +6,59 @@ from scipy import signal, fft
 import csv
 import time
 import sys
+import threading
 
 class Plot():
 	'Class used to plot EEG data in real time'
 
-	def __init__():
+	def __init__(self):
 		#pyqtgraph setup
+		N = 250
+		fs_Hz = 250
+
 		app = QtGui.QApplication([]) #initilizes Qt
 		w = QtGui.QWidget()
 		layout = QtGui.QGridLayout()
 		w.setLayout(layout)
-		# plotWidget = pg.plot(x=f[0:60], y=zeros[0:60])
+		pg.setConfigOptions(antialias=True)
+
+		f=np.linspace(0,N-1,N)*fs_Hz/N #the y axis
+		zeros = np.zeros(N) #the x axis. initially zero
+
+		plotWidget = pg.plot(x=f[0:60], y=zeros[0:60])
+
 		plotWidget.setLabel('left','Amplitude','uV')
 		plotWidget.setLabel('bottom','Frequency','Hz')
+		plotWidget.show()
+		Filter.data
+		self.update_plot(plotWidget,newData)
+		# app.exec_()
 
-	def update_plot():
+	def update_plot(self,plotWidget,fft):
+		plotWidget.plot(x=f[0:60],y=self.fft[0:60])
 
 
-	N = 250
-	fs_Hz = 250
-	buffer_holder = []
-	first_buffer = False
 
-	#SETUP
-	f=np.linspace(0,N-1,N)*fs_Hz/N #the y axis
-	zeros = np.zeros(N) #the x axis. initially zero
-	print("Main window:")
-	app.exec_()
-	time.sleep(1)
+	# buffer_holder = []
+	# first_buffer = False
 
-	def __init__(self):
-		print("initializing..")
-		self.fs_Hz = 250 #sample rate in Hz
+	# #SETUP
+	# print("Main window:")
+	# app.exec_()
+	# time.sleep(1)
+
+	# def __init__(self):
+	# 	print("initializing..")
+	# 	self.fs_Hz = 250 #sample rate in Hz
 
 
 class Streamer:
 	'Streamer object to simulate EEG data streaming'
 
-	def __init__(self,fs_Hz,processing):
-		self.fs_Hz = fs_hz
-		self.processing = processing
+	def __init__(self,fs_Hz):
+		self.fs_Hz = fs_Hz
+		self.buffer_holder = []
+		self.FIRST_BUFFER = True
 
 	def file_input(self):
 		channel_data = []
@@ -53,10 +66,9 @@ class Streamer:
 		with open('sample.txt', 'r') as file:
 			reader = csv.reader(file, delimiter=',')
 			next(file)
-			i=0
 			for line in reader:
 				channel_data.append(line[1])
-		print("EEG Time: ", len(channel_data)/250)
+
 		start = time.time()
 		i=0
 		for sample in channel_data:
@@ -64,24 +76,30 @@ class Streamer:
 			end = time.time()
 			print("EEG TIME: ", i/250, " SECONDS")
 			print("Real time: ",end-start)
-			if self.first_buffer is False:
+
+			if self.FIRST_BUFFER is True:
 				self.init_buffer(float(sample))
 			else:
 				self.sample_buffer(float(sample))
+			print("test")
 		print("EEG Time: ", len(channel_data)/250)
 
-	def init_buffer(self,sample):
-		buffer_holder = self.buffer_holder
-		self.buffer_holder = np.append(buffer_holder,sample) #isolate channel of interest (ch1)
-		if len(buffer_holder) == 250: #this is the size of the sample buffer
-			self.buffer_holder = np.asarray(buffer_holder)
-			self.processing(self.buffer_holder)
-			self.first_buffer = True
 
-	def sample_buffer(self, sample):
+	#Send for processing
+
+	def init_buffer(self,sample):
+		self.buffer_holder = np.append(self.buffer_holder,sample) #isolate channel of interest (ch1)
+		if len(self.buffer_holder) == 250: #this is the size of the sample buffer
+			# self.buffer_holder = np.asarray(buffer_holder)
+			if FILTER is True:
+				self.data = filters.receive_data(self.buffer_holder)
+			self.FIRST_BUFFER = False
+
+	def sample_buffer(self,sample):
 		self.buffer_holder = np.delete(self.buffer_holder, 0)
 		self.buffer_holder = np.append(self.buffer_holder,sample)
-		self.processing(np.asarray(self.buffer_holder))
+		if FILTER is True:
+			self.data = filters.receive_data(self.buffer_holder)
 
 class Filters:
 	'Class containing EEG filtering and analysis tools' 
@@ -90,23 +108,29 @@ class Filters:
 	#Then, call the Filters.data parameter in order to then get the filtered data
 
 
-	def __init__(self,data,fs_Hz,filter_types):
-		self.fs_Hz = fs_Hz #setting the sample rate
-		self.data = data #the current data being processed
-		
+	def __init__(self,fs_Hz,filter_types):
+		self.fs_Hz = fs_Hz #setting the sample rate		
 		#determine which filters were called
-		for type in filters:
+		for type in filter_types:
 			if type is "fft":
 				#notch and bandpass are pre-requisites for fft
-				notch_filter(self,data)
-				bandpass_filter(self,data)
-				fft(self,data)
-				break #no more filters are needed if fft is performed
+				self.NOTCH = True
+				self.BANDPASS = True
+				self.FFT = True
 			elif type is "notch":
-				notch_filter(self,data)
+				self.NOTCH = True
 			elif type is "bandpass":
-				bandpass_filter(self,data)
+				self.BANDPASS = True
 
+	def receive_data(self,data):
+		# self.data = data
+		if self.NOTCH is True:
+			self.notch_filter(data,60)
+		if self.BANDPASS is True:
+			self.bandpass_filter(data,1,50)
+		if self.FFT is True:
+			self.fft(data)
+		return self.data
 
 	def notch_filter(self,data,notch_Hz=60):
 		notch_Hz = np.array([float(notch_Hz - 1.0), float(notch_Hz + 1.0)])
@@ -134,7 +158,32 @@ class Filters:
 		self.data = np.fft.fft(data)/(self.fs_Hz) #fft computation and normalization
 
 
+#Threading
+class Thread(pg.QtCore.QThread):
+    newData = pg.QtCore.Signal(object)
+    def run(self):
+        while True:
+            data = pg.np.random.normal(size=100)
+            # do NOT plot data from here!
+            self.newData.emit(data)
+            time.sleep(0.05)
 
-test = Filters()
-data = test.data()
-test.file_input()
+# thread = Thread()
+# thread.newData.connect(update)
+# thread.start()
+
+
+# lock = threading.Lock() #the Lock object
+# PLOTTING = True #check if graph should continue plotting
+FILTER = True
+streamer = Streamer(250)
+filters = Filters(250,['fft'])
+streamer.file_input()
+
+# display_plot = Plot()
+
+
+# display_plot.show()
+
+
+# test.file_input()
