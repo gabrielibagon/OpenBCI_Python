@@ -1,66 +1,101 @@
 import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui, QtCore
+#PyQt version 4.11.4
+from PyQt4.QtCore import QThread, pyqtSignal, pyqtSlot, SIGNAL
+# from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
+# from matplotlib.figure import Figure
+
+
+import window
 from scipy import signal, fft
+
 
 import csv
 import time
 import sys
 import threading
 
-class Plot():
+class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 	'Class used to plot EEG data in real time'
 
-	def __init__(self):
+	def __init__(self, streamer, parent=None):
 		#pyqtgraph setup
-		N = 250
-		fs_Hz = 250
+		global form
+		global new_data
+		self.streamer = streamer
+		self.N = 250
+		self.fs_Hz = 250
+		self.data = []
+		self.f = np.linspace(0,self.N-1,self.N)*self.fs_Hz/self.N #the y axis
+		self.zeros = np.zeros(self.N) #the x axis. initially zero
+		#Setup the GUI
+		super(self.__class__,self).__init__()
+		self.setupUi(self)
+		self.canvas = self.graphicsView #canvas is of the type pyqtplot.PlotWidget
 
-		app = QtGui.QApplication([]) #initilizes Qt
-		w = QtGui.QWidget()
-		layout = QtGui.QGridLayout()
-		w.setLayout(layout)
-		pg.setConfigOptions(antialias=True)
+		self.p1 = self.canvas.plot()
 
-		f=np.linspace(0,N-1,N)*fs_Hz/N #the y axis
-		zeros = np.zeros(N) #the x axis. initially zero
+		print(type(self.graphicsView))
+		print(type(self.canvas))
+		print(type(self.p1))
 
-		plotWidget = pg.plot(x=f[0:60], y=zeros[0:60])
+		# PARAMETERS FOR PLOT
+		self.canvas.setLabel('left','Amplittude','uV')
+		self.canvas.setLabel('bottom','Frequency','Hz')
+		self.canvas.setWindowTitle('Magnitude spectrum of the signal')
+		self.canvas.setXRange(0,60)
+		self.canvas.setYRange(0,1)
+		self.canvas.setLogMode(y=True)
+		self.canvas.disableAutoRange()
+		# self.p1.setFillBrush((0, 0, 100, 100))
 
-		plotWidget.setLabel('left','Amplitude','uV')
-		plotWidget.setLabel('bottom','Frequency','Hz')
-		plotWidget.show()
-		Filter.data
-		self.update_plot(plotWidget,newData)
-		# app.exec_()
+		# p = self.canvas.plot()
+		# curve = p.plot()
 
-	def update_plot(self,plotWidget,fft):
-		plotWidget.plot(x=f[0:60],y=self.fft[0:60])
+		# streamer.run()
+		# self.connect(self.get_thread, SIGNAL('new_data(QString)'), self.plot_data)
+		streamer.new_data.connect(self.plot_data)
+		self.pushButton.clicked.connect(lambda: self.start_streamer())
+		
 
+		# self.start_streamer()
 
+	def start_streamer(self):
+		self.streamer.run()
 
-	# buffer_holder = []
-	# first_buffer = False
+	@pyqtSlot(np.ndarray)
+	def plot_data(self,data):
+		# self.get_thread = self.streamer
+		# self.connect(SIGNAL('new_data(QString)'), self.data)
+		# self.get_thread.start()
+		# print("DATATATATTAA:",data)
+		global app
+		print(abs(data[0:60]))
+		self.p1.setData(x=self.f[0:60],y=abs(data[0:60]))
+		app.processEvents()
+		print("Sup friend")
 
-	# #SETUP
-	# print("Main window:")
-	# app.exec_()
-	# time.sleep(1)
-
-	# def __init__(self):
-	# 	print("initializing..")
-	# 	self.fs_Hz = 250 #sample rate in Hz
-
-
-class Streamer:
+class Streamer(QThread):
 	'Streamer object to simulate EEG data streaming'
+	new_data = pyqtSignal(np.ndarray)
 
-	def __init__(self,fs_Hz):
+	def __init__(self,fs_Hz, filters):
+		QThread.__init__(self)
+		self.data = []
 		self.fs_Hz = fs_Hz
-		self.buffer_holder = []
 		self.FIRST_BUFFER = True
+		self.filters = filters
+
+	def __del__(self):
+		self.wait()
+
+	def run(self):
+		self.file_input()
 
 	def file_input(self):
+		global form
+		global new_data
 		channel_data = []
 		time_data = []
 		with open('sample.txt', 'r') as file:
@@ -73,33 +108,41 @@ class Streamer:
 		i=0
 		for sample in channel_data:
 			i+=1
+			print(i)
 			end = time.time()
-			print("EEG TIME: ", i/250, " SECONDS")
-			print("Real time: ",end-start)
+			# print("EEG TIME: ", i/250, " SECONDS")
+			# print("Real time: ",end-start)
 
 			if self.FIRST_BUFFER is True:
 				self.init_buffer(float(sample))
 			else:
 				self.sample_buffer(float(sample))
-			print("test")
-		print("EEG Time: ", len(channel_data)/250)
+				# if 'form' in globals():
+				# 	print("YES BABY")
+				# else:
+				# 	print("NOOOOO")
+				# if i%50 is 0:
+				self.new_data.emit(self.data)
+		# print("EEG Time: ", len(channel_data)/250)
 
 
 	#Send for processing
 
 	def init_buffer(self,sample):
-		self.buffer_holder = np.append(self.buffer_holder,sample) #isolate channel of interest (ch1)
-		if len(self.buffer_holder) == 250: #this is the size of the sample buffer
-			# self.buffer_holder = np.asarray(buffer_holder)
+		self.data = np.append(self.data,sample) #isolate channel of interest (ch1)
+		if len(self.data) == 250: #ths is the size of the sample buffer
 			if FILTER is True:
-				self.data = filters.receive_data(self.buffer_holder)
+				self.data = self.filters.receive_data(self.data)
 			self.FIRST_BUFFER = False
+			# thread = DataThread()
+
 
 	def sample_buffer(self,sample):
-		self.buffer_holder = np.delete(self.buffer_holder, 0)
-		self.buffer_holder = np.append(self.buffer_holder,sample)
+		self.data = np.delete(self.data, 0)
+		self.data = np.append(self.data,sample)
 		if FILTER is True:
-			self.data = filters.receive_data(self.buffer_holder)
+			self.data = self.filters.receive_data(self.data)
+			# print("DATAAAA",self.data)
 
 class Filters:
 	'Class containing EEG filtering and analysis tools' 
@@ -155,31 +198,32 @@ class Filters:
 	# window = signal.hann()
 
 	def fft(self,data):
-		self.data = np.fft.fft(data)/(self.fs_Hz) #fft computation and normalization
+		self.data = np.asarray(np.fft.fft(data)/(self.fs_Hz)) #fft computation and normalization
+
+def main():
+	global FILTER
+	global form
+	global app
+	FILTER = True
+	PLOT = True
+	if FILTER is True:
+		filters = Filters(250,['fft'])
+	streamer = Streamer(250,filters)
+	if PLOT is True:
+		app = QtGui.QApplication(sys.argv)  # new instance of QApplication
+		form = Plot(streamer)				# set form to be Plot()
+		form.show()							# Show the form
+		# form.start_streamer()
+		app.exec_()							# execute the app
+	print("READY")
 
 
-#Threading
-class Thread(pg.QtCore.QThread):
-    newData = pg.QtCore.Signal(object)
-    def run(self):
-        while True:
-            data = pg.np.random.normal(size=100)
-            # do NOT plot data from here!
-            self.newData.emit(data)
-            time.sleep(0.05)
-
-# thread = Thread()
-# thread.newData.connect(update)
-# thread.start()
 
 
-# lock = threading.Lock() #the Lock object
-# PLOTTING = True #check if graph should continue plotting
-FILTER = True
-streamer = Streamer(250)
-filters = Filters(250,['fft'])
-streamer.file_input()
-
+if __name__ == '__main__':
+	form = None
+	app = None
+	main()
 # display_plot = Plot()
 
 
