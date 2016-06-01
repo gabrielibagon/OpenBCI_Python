@@ -23,6 +23,7 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		#pyqtgraph setup
 		global form
 		global new_data
+		self.processed_data = []
 		self.streamer = streamer
 		self.N = 250
 		self.fs_Hz = 250
@@ -49,12 +50,6 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		self.canvas.setLogMode(y=True)
 		self.canvas.disableAutoRange()
 		# self.p1.setFillBrush((0, 0, 100, 100))
-
-		# p = self.canvas.plot()
-		# curve = p.plot()
-
-		# streamer.run()
-		# self.connect(self.get_thread, SIGNAL('new_data(QString)'), self.plot_data)
 		streamer.new_data.connect(self.plot_data)
 		self.pushButton.clicked.connect(lambda: self.start_streamer())
 		
@@ -71,8 +66,7 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		# self.get_thread.start()
 		# print("DATATATATTAA:",data)
 		global app
-		print(abs(data[0:60]))
-		self.p1.setData(x=self.f[0:60],y=abs(data[0:60]))
+		self.p1.setData(x=self.f[0:60],y=data[0:60])
 		app.processEvents()
 		print("Sup friend")
 
@@ -109,7 +103,7 @@ class Streamer(QThread):
 		for sample in channel_data:
 			i+=1
 			print(i)
-			end = time.time()
+			# end = time.time()
 			# print("EEG TIME: ", i/250, " SECONDS")
 			# print("Real time: ",end-start)
 
@@ -117,12 +111,9 @@ class Streamer(QThread):
 				self.init_buffer(float(sample))
 			else:
 				self.sample_buffer(float(sample))
-				# if 'form' in globals():
-				# 	print("YES BABY")
-				# else:
-				# 	print("NOOOOO")
-				# if i%50 is 0:
-				self.new_data.emit(self.data)
+				if i%50 is 0:
+					print("emit")
+					self.new_data.emit(self.data)
 		# print("EEG Time: ", len(channel_data)/250)
 
 
@@ -132,16 +123,21 @@ class Streamer(QThread):
 		self.data = np.append(self.data,sample) #isolate channel of interest (ch1)
 		if len(self.data) == 250: #ths is the size of the sample buffer
 			if FILTER is True:
-				self.data = self.filters.receive_data(self.data)
+				self.processed_data = self.filters.receive_data(self.data)
 			self.FIRST_BUFFER = False
 			# thread = DataThread()
 
 
 	def sample_buffer(self,sample):
+		# print("initial 2nd buffer")
+		# print(self.data)
 		self.data = np.delete(self.data, 0)
 		self.data = np.append(self.data,sample)
+		# print('new second buffer')
+		# print(self.data)
+		# time.sleep(5)
 		if FILTER is True:
-			self.data = self.filters.receive_data(self.data)
+			self.processed_data = self.filters.receive_data(self.data)
 			# print("DATAAAA",self.data)
 
 class Filters:
@@ -157,8 +153,8 @@ class Filters:
 		for type in filter_types:
 			if type is "fft":
 				#notch and bandpass are pre-requisites for fft
-				self.NOTCH = True
-				self.BANDPASS = True
+				self.NOTCH = False
+				self.BANDPASS = False
 				self.FFT = True
 			elif type is "notch":
 				self.NOTCH = True
@@ -172,8 +168,13 @@ class Filters:
 		if self.BANDPASS is True:
 			self.bandpass_filter(data,1,50)
 		if self.FFT is True:
-			self.fft(data)
-		return self.data
+			processed_data = self.fft(data)
+			# print(processed_data.shape)
+			# print("before", processed_data)
+			processed_data = np.reshape(processed_data,250)
+			# print("after", processed_data)
+			# time.sleep(5)
+		return processed_data
 
 	def notch_filter(self,data,notch_Hz=60):
 		notch_Hz = np.array([float(notch_Hz - 1.0), float(notch_Hz + 1.0)])
@@ -198,7 +199,15 @@ class Filters:
 	# window = signal.hann()
 
 	def fft(self,data):
-		self.data = np.asarray(np.fft.fft(data)/(self.fs_Hz)) #fft computation and normalization
+		global fft_array
+		fft_data1 = []
+		fft_data2 = []
+		fft_data1 = np.fft.fft(data).conj().reshape(-1, 1)
+		fft_data1 = abs(fft_data1/self.fs_Hz) #generate two-sided spectrum
+		fft_data2 = fft_data1[0:(250/2)+1]
+		fft_data1[1:len(fft_data1)-1] = 2*fft_data1[1:len(fft_data1)-1]
+		fft_array.append(fft_data1)
+		return fft_data1 #fft computation and normalization
 
 def main():
 	global FILTER
@@ -215,6 +224,8 @@ def main():
 		form.show()							# Show the form
 		# form.start_streamer()
 		app.exec_()							# execute the app
+	np.savetxt('fft_python_check.txt', streamer.processed_data,delimiter=',')
+
 	print("READY")
 
 
@@ -223,7 +234,10 @@ def main():
 if __name__ == '__main__':
 	form = None
 	app = None
+	fft_array = []
+
 	main()
+
 # display_plot = Plot()
 
 
