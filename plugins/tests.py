@@ -46,7 +46,7 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		self.canvas.setLabel('bottom','Frequency','Hz')
 		self.canvas.setWindowTitle('Magnitude spectrum of the signal')
 		self.canvas.setXRange(0,60)
-		self.canvas.setYRange(0,1)
+		self.canvas.setYRange(-1.5,1.5)
 		self.canvas.setLogMode(y=True)
 		self.canvas.disableAutoRange()
 		# self.p1.setFillBrush((0, 0, 100, 100))
@@ -69,6 +69,13 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		self.p1.setData(x=self.f[0:60],y=data[0:60])
 		app.processEvents()
 		print("Sup friend")
+
+
+	# def smoothing(self,data):
+	# 	# Function used to smooth the fft plot
+
+
+
 
 class Streamer(QThread):
 	'Streamer object to simulate EEG data streaming'
@@ -103,17 +110,18 @@ class Streamer(QThread):
 		for sample in channel_data:
 			i+=1
 			print(i)
-			# end = time.time()
-			# print("EEG TIME: ", i/250, " SECONDS")
-			# print("Real time: ",end-start)
+			time.sleep(0.004)
+			end = time.time()
+			print("EEG TIME: ", i/250, " SECONDS")
+			print("Real time: ",end-start)
 
 			if self.FIRST_BUFFER is True:
 				self.init_buffer(float(sample))
 			else:
 				self.sample_buffer(float(sample))
-				if i%50 is 0:
+				if i%10 is 0:
 					print("emit")
-					self.new_data.emit(self.data)
+					self.new_data.emit(self.processed_data)
 		# print("EEG Time: ", len(channel_data)/250)
 
 
