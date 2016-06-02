@@ -25,14 +25,14 @@ except AttributeError:
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName(_fromUtf8("MainWindow"))
-        MainWindow.resize(426, 445)
+        MainWindow.resize(1110, 785)
         self.centralwidget = QtGui.QWidget(MainWindow)
         self.centralwidget.setObjectName(_fromUtf8("centralwidget"))
         self.pushButton = QtGui.QPushButton(self.centralwidget)
-        self.pushButton.setGeometry(QtCore.QRect(-2, 370, 431, 31))
+        self.pushButton.setGeometry(QtCore.QRect(360, 750, 431, 31))
         self.pushButton.setObjectName(_fromUtf8("pushButton"))
         self.graphicsView = PlotWidget(self.centralwidget)
-        self.graphicsView.setGeometry(QtCore.QRect(-5, 0, 431, 371))
+        self.graphicsView.setGeometry(QtCore.QRect(-5, 0, 1121, 751))
         self.graphicsView.setObjectName(_fromUtf8("graphicsView"))
         MainWindow.setCentralWidget(self.centralwidget)
 

@@ -3,18 +3,14 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui, QtCore
 #PyQt version 4.11.4
 from PyQt4.QtCore import QThread, pyqtSignal, pyqtSlot, SIGNAL
-# from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
-# from matplotlib.figure import Figure
-
-
 import window
 from scipy import signal, fft
-
 
 import csv
 import time
 import sys
 import threading
+
 
 class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 	'Class used to plot EEG data in real time'
@@ -28,51 +24,64 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		self.N = 250
 		self.fs_Hz = 250
 		self.data = []
-		self.f = np.linspace(0,self.N-1,self.N)*self.fs_Hz/self.N #the y axis
-		self.zeros = np.zeros(self.N) #the x axis. initially zero
-		#Setup the GUI
+		self.f = np.linspace(0,self.N-1,self.N)*self.fs_Hz/self.N #the y axis		
+		self.last_data_window = []
+
+
+		# SETUP THE GUI
+		# initialization
 		super(self.__class__,self).__init__()
 		self.setupUi(self)
 		self.canvas = self.graphicsView #canvas is of the type pyqtplot.PlotWidget
-
 		self.p1 = self.canvas.plot()
-
-		print(type(self.graphicsView))
-		print(type(self.canvas))
-		print(type(self.p1))
 
 		# PARAMETERS FOR PLOT
 		self.canvas.setLabel('left','Amplittude','uV')
 		self.canvas.setLabel('bottom','Frequency','Hz')
 		self.canvas.setWindowTitle('Magnitude spectrum of the signal')
 		self.canvas.setXRange(0,60)
-		self.canvas.setYRange(-1.5,1.5)
+		self.canvas.setYRange(-1.5,2)
 		self.canvas.setLogMode(y=True)
 		self.canvas.disableAutoRange()
-		# self.p1.setFillBrush((0, 0, 100, 100))
+
+
 		streamer.new_data.connect(self.plot_data)
+
 		self.pushButton.clicked.connect(lambda: self.start_streamer())
 		
-
-		# self.start_streamer()
-
 	def start_streamer(self):
 		self.streamer.run()
 
 	@pyqtSlot(np.ndarray)
 	def plot_data(self,data):
-		# self.get_thread = self.streamer
-		# self.connect(SIGNAL('new_data(QString)'), self.data)
-		# self.get_thread.start()
-		# print("DATATATATTAA:",data)
 		global app
+		print(data)
+		data = self.smoothing(data)
+		print(data)
 		self.p1.setData(x=self.f[0:60],y=data[0:60])
 		app.processEvents()
 		print("Sup friend")
 
+	# Function used to smooth the fft plot
+	def smoothing(self,data):
+		last_data_window = self.last_data_window
+		# if this is the first data window being plotted
+		if len(last_data_window) == 0:
+			self.last_data_window = data #set this up for the next window
+			print("wot")
+			return data #return without being smoothed
+		#else, average last_data_window with current data
+		else:
+			self.last_data_window = data
+			# ***USING THIS IMPLEMENTATION DEFAULTS TO 50/50 SMOOTHING
+			# THAT IS .5 ON THE PROCESSING GUI
+			# THIS LOOKS NICE TO ME, BUT POSSIBLY WOULD WANT OPTIONS?
+			data = np.mean(np.array([data, last_data_window]), axis=0)
+			return data
 
-	# def smoothing(self,data):
-	# 	# Function used to smooth the fft plot
+
+		
+
 
 
 
@@ -110,11 +119,10 @@ class Streamer(QThread):
 		for sample in channel_data:
 			i+=1
 			print(i)
-			time.sleep(0.004)
+			time.sleep(0.0035)
 			end = time.time()
-			print("EEG TIME: ", i/250, " SECONDS")
-			print("Real time: ",end-start)
-
+			# print("Recorded TIME: ", i/250, " SECONDS")
+			# print("Program time: ",end-start)
 			if self.FIRST_BUFFER is True:
 				self.init_buffer(float(sample))
 			else:
@@ -156,13 +164,14 @@ class Filters:
 
 
 	def __init__(self,fs_Hz,filter_types):
-		self.fs_Hz = fs_Hz #setting the sample rate		
+		self.fs_Hz = fs_Hz #setting the sample rate
+		self.processed_data = [] #creating an array for filtered data
 		#determine which filters were called
 		for type in filter_types:
 			if type is "fft":
 				#notch and bandpass are pre-requisites for fft
-				self.NOTCH = False
-				self.BANDPASS = False
+				self.NOTCH = True
+				self.BANDPASS = True
 				self.FFT = True
 			elif type is "notch":
 				self.NOTCH = True
@@ -171,12 +180,13 @@ class Filters:
 
 	def receive_data(self,data):
 		# self.data = data
+		processed_data = data #processed_data initialized with data, it will then be sent through the filters
 		if self.NOTCH is True:
-			self.notch_filter(data,60)
+			processed_data = self.notch_filter(processed_data,60)
 		if self.BANDPASS is True:
-			self.bandpass_filter(data,1,50)
+			processed_data = self.bandpass_filter(processed_data,1,50)
 		if self.FFT is True:
-			processed_data = self.fft(data)
+			processed_data = self.fft(processed_data)
 			# print(processed_data.shape)
 			# print("before", processed_data)
 			processed_data = np.reshape(processed_data,250)
@@ -189,7 +199,8 @@ class Filters:
 		b, a = signal.butter(2,notch_Hz/(self.fs_Hz / 2.0), 'bandstop')
 
 		#apply the filter to the stream
-		self.data = signal.lfilter(b,a,data)
+		processed_data = signal.lfilter(b,a,data)
+		return processed_data
 
 
 	def bandpass_filter(self,data,low_cut,high_cut):
@@ -197,7 +208,8 @@ class Filters:
 		b,a = signal.butter(2, bandpass_frequencies/(self.fs_Hz / 2.0), 'bandpass')
 		
 		#apply filter to stream, update data with filtered signal
-		self.data = signal.lfilter(b,a,data)
+		processed_data = signal.lfilter(b,a,data)
+		return processed_data
 
 
 	####################
@@ -208,6 +220,10 @@ class Filters:
 
 	def fft(self,data):
 		global fft_array
+
+
+
+		#FFT ALGORITHM
 		fft_data1 = []
 		fft_data2 = []
 		fft_data1 = np.fft.fft(data).conj().reshape(-1, 1)
