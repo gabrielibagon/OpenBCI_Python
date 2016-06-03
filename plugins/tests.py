@@ -26,6 +26,8 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		self.data = []
 		self.f = np.linspace(0,self.N-1,self.N)*self.fs_Hz/self.N #the y axis		
 		self.last_data_window = []
+		self.number_of_channels = 8
+		self.channel_curves = []
 
 
 		# SETUP THE GUI
@@ -33,7 +35,9 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		super(self.__class__,self).__init__()
 		self.setupUi(self)
 		self.canvas = self.graphicsView #canvas is of the type pyqtplot.PlotWidget
-		self.p1 = self.canvas.plot()
+		for i in range(self.number_of_channels):
+			self.channel_curves.append(self.canvas.plot())
+		# self.p2.setData(x=[10,20,30,40], y=[1,1,1,1])
 
 		# PARAMETERS FOR PLOT
 		self.canvas.setLabel('left','Amplittude','uV')
@@ -55,10 +59,24 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 	@pyqtSlot(np.ndarray)
 	def plot_data(self,data):
 		global app
-		print(data)
 		data = self.smoothing(data)
-		print(data)
-		self.p1.setData(x=self.f[0:60],y=data[0:60])
+		i = 1
+		# channel1 = data[0]
+		# channel2 = data[1]
+		# channel3 = data[2]
+		# channel4 = data[3]
+		# channel5 = data[4]
+		# channel6 = data[5]
+		# channel7 = data[6]
+		# channel8 = data[7]
+		i = 0
+		for i,channel in enumerate(data):
+			self.channel_curves[i].setData(x=self.f[0:60],y=channel[0:60])
+			i+=1
+		# for channel in data:
+		# 	curve = 'p' + str(i)
+		# 	self.curve.setData(x=self.f[0:60],y=channel[0:60])
+		# 	i+=1
 		app.processEvents()
 		print("Sup friend")
 
@@ -68,15 +86,18 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		# if this is the first data window being plotted
 		if len(last_data_window) == 0:
 			self.last_data_window = data #set this up for the next window
-			print("wot")
 			return data #return without being smoothed
 		#else, average last_data_window with current data
 		else:
 			self.last_data_window = data
+
 			# ***USING THIS IMPLEMENTATION DEFAULTS TO 50/50 SMOOTHING
 			# THAT IS .5 ON THE PROCESSING GUI
 			# THIS LOOKS NICE TO ME, BUT POSSIBLY WOULD WANT OPTIONS?
-			data = np.mean(np.array([data, last_data_window]), axis=0)
+			i = 0
+			for channel in data:
+				data[i] = np.mean(np.array([channel, last_data_window[i]]), axis=0)
+				i+=1
 			return data
 
 
@@ -107,26 +128,27 @@ class Streamer(QThread):
 		global form
 		global new_data
 		channel_data = []
-		time_data = []
 		with open('sample.txt', 'r') as file:
 			reader = csv.reader(file, delimiter=',')
 			next(file)
+			j = 0
 			for line in reader:
-				channel_data.append(line[1])
-
+				channel_data.append(line[1:]) #list
+				j+=1
 		start = time.time()
 		i=0
 		for sample in channel_data:
 			i+=1
 			print(i)
 			time.sleep(0.0035)
-			end = time.time()
+			# end = time.time()
 			# print("Recorded TIME: ", i/250, " SECONDS")
 			# print("Program time: ",end-start)
+			#New array of each sample
 			if self.FIRST_BUFFER is True:
-				self.init_buffer(float(sample))
+				self.init_buffer(sample)
 			else:
-				self.sample_buffer(float(sample))
+				self.sample_buffer(sample)
 				if i%10 is 0:
 					print("emit")
 					self.new_data.emit(self.processed_data)
@@ -136,32 +158,35 @@ class Streamer(QThread):
 	#Send for processing
 
 	def init_buffer(self,sample):
-		self.data = np.append(self.data,sample) #isolate channel of interest (ch1)
+		self.data.append(sample)
 		if len(self.data) == 250: #ths is the size of the sample buffer
+
+			#reformat data for processing
+			data = np.asarray(list(zip(*self.data))) #change that format of data to [channels, samples] for processed
+			data = data.astype(np.float) #change the contents of the data to float for processed
 			if FILTER is True:
-				self.processed_data = self.filters.receive_data(self.data)
+				self.processed_data = self.filters.receive_data(data)
 			self.FIRST_BUFFER = False
+
 			# thread = DataThread()
 
 
 	def sample_buffer(self,sample):
-		# print("initial 2nd buffer")
-		# print(self.data)
-		self.data = np.delete(self.data, 0)
-		self.data = np.append(self.data,sample)
-		# print('new second buffer')
-		# print(self.data)
-		# time.sleep(5)
+		self.data.pop(0)
+		self.data.append(sample)
+
+		#reformat data for processing
+		data = np.asarray(list(zip(*self.data))) #change that format of data to [channels, samples] for processed
+		data = data.astype(np.float) #change the contents of the data to float for processed
+
 		if FILTER is True:
-			self.processed_data = self.filters.receive_data(self.data)
-			# print("DATAAAA",self.data)
+			self.processed_data = self.filters.receive_data(data)
 
 class Filters:
 	'Class containing EEG filtering and analysis tools' 
 
 	#To use, instantiate the class with parameters specifying the type of filter and analysisf.
 	#Then, call the Filters.data parameter in order to then get the filtered data
-
 
 	def __init__(self,fs_Hz,filter_types):
 		self.fs_Hz = fs_Hz #setting the sample rate
@@ -170,8 +195,8 @@ class Filters:
 		for type in filter_types:
 			if type is "fft":
 				#notch and bandpass are pre-requisites for fft
-				self.NOTCH = True
-				self.BANDPASS = True
+				self.NOTCH = False
+				self.BANDPASS = False
 				self.FFT = True
 			elif type is "notch":
 				self.NOTCH = True
@@ -187,28 +212,36 @@ class Filters:
 			processed_data = self.bandpass_filter(processed_data,1,50)
 		if self.FFT is True:
 			processed_data = self.fft(processed_data)
-			# print(processed_data.shape)
 			# print("before", processed_data)
-			processed_data = np.reshape(processed_data,250)
+			# processed_data = np.reshape(processed_data,250)
 			# print("after", processed_data)
 			# time.sleep(5)
 		return processed_data
 
 	def notch_filter(self,data,notch_Hz=60):
+		processed_data = np.empty([8,250])
+
+		#set up filter
 		notch_Hz = np.array([float(notch_Hz - 1.0), float(notch_Hz + 1.0)])
 		b, a = signal.butter(2,notch_Hz/(self.fs_Hz / 2.0), 'bandstop')
-
-		#apply the filter to the stream
-		processed_data = signal.lfilter(b,a,data)
+		i=0
+		#apply the filter to the stream, one channel at a time
+		for channel in data:
+			processed_data[i] = signal.lfilter(b,a,channel)
+			i+=1
 		return processed_data
 
 
 	def bandpass_filter(self,data,low_cut,high_cut):
+		processed_data = np.empty([8,250])
+		# set up filter
 		bandpass_frequencies = np.array([low_cut, high_cut])
 		b,a = signal.butter(2, bandpass_frequencies/(self.fs_Hz / 2.0), 'bandpass')
-		
-		#apply filter to stream, update data with filtered signal
-		processed_data = signal.lfilter(b,a,data)
+		# apply filter to data window
+		i=0
+		for channel in data:
+			processed_data[i] = signal.lfilter(b,a,channel)
+			i+=1
 		return processed_data
 
 
@@ -220,18 +253,19 @@ class Filters:
 
 	def fft(self,data):
 		global fft_array
-
-
-
-		#FFT ALGORITHM
-		fft_data1 = []
-		fft_data2 = []
-		fft_data1 = np.fft.fft(data).conj().reshape(-1, 1)
-		fft_data1 = abs(fft_data1/self.fs_Hz) #generate two-sided spectrum
-		fft_data2 = fft_data1[0:(250/2)+1]
-		fft_data1[1:len(fft_data1)-1] = 2*fft_data1[1:len(fft_data1)-1]
-		fft_array.append(fft_data1)
-		return fft_data1 #fft computation and normalization
+		i=0
+		for channel in data:
+			#FFT ALGORITHM
+			fft_data1 = []
+			fft_data2 = []
+			fft_data1 = np.fft.fft(channel).conj().reshape(-1, 1)
+			fft_data1 = abs(fft_data1/self.fs_Hz) #generate two-sided spectrum
+			fft_data2 = fft_data1[0:(250/2)+1]
+			fft_data1[1:len(fft_data1)-1] = 2*fft_data1[1:len(fft_data1)-1]
+			fft_data1 = fft_data1.reshape(250)
+			fft_array[i] = fft_data1
+			i+=1
+		return fft_array #fft computation and normalization
 
 def main():
 	global FILTER
@@ -248,7 +282,7 @@ def main():
 		form.show()							# Show the form
 		# form.start_streamer()
 		app.exec_()							# execute the app
-	np.savetxt('fft_python_check.txt', streamer.processed_data,delimiter=',')
+	# np.savetxt('fft_python_check.txt', streamer.processed_data,delimiter=',')
 
 	print("READY")
 
@@ -258,7 +292,7 @@ def main():
 if __name__ == '__main__':
 	form = None
 	app = None
-	fft_array = []
+	fft_array = np.empty([8,250])
 
 	main()
 
