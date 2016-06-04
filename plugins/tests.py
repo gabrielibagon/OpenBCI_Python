@@ -10,7 +10,7 @@ import csv
 import time
 import sys
 import threading
-
+from recordclass import recordclass
 
 class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 	'Class used to plot EEG data in real time'
@@ -27,26 +27,41 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		self.f = np.linspace(0,self.N-1,self.N)*self.fs_Hz/self.N #the y axis		
 		self.last_data_window = []
 		self.number_of_channels = 8
-		self.channel_curves = []
+		self.fft_channel_curves = []
+		self.scroll_channel_curves = []
 
 
 		# SETUP THE GUI
+
+
 		# initialization
 		super(self.__class__,self).__init__()
 		self.setupUi(self)
-		self.canvas = self.graphicsView #canvas is of the type pyqtplot.PlotWidget
+
+		#################################################################
+		# DATA SCROLL
+		self.scroll_canvas = self.data_scroll
 		for i in range(self.number_of_channels):
-			self.channel_curves.append(self.canvas.plot())
+			self.scroll_channel_curves.append(self.scroll_canvas.plot())
+		self.scroll_canvas.setLabel('bottom','Time','Seconds')
+
+
+
+		#################################################################
+		# FFT PLOT
+		self.fft_canvas = self.fft #canvas is of the type pyqtplot.PlotWidget
+		for i in range(self.number_of_channels):
+			self.fft_channel_curves.append(self.fft_canvas.plot())
 		# self.p2.setData(x=[10,20,30,40], y=[1,1,1,1])
 
-		# PARAMETERS FOR PLOT
-		self.canvas.setLabel('left','Amplittude','uV')
-		self.canvas.setLabel('bottom','Frequency','Hz')
-		self.canvas.setWindowTitle('Magnitude spectrum of the signal')
-		self.canvas.setXRange(0,60)
-		self.canvas.setYRange(-1.5,2)
-		self.canvas.setLogMode(y=True)
-		self.canvas.disableAutoRange()
+		# PARAMETERS FOR FFT PLOT
+		self.fft_canvas.setLabel('left','Amplittude','uV')
+		self.fft_canvas.setLabel('bottom','Frequency','Hz')
+		self.fft_canvas.setWindowTitle('Magnitude spectrum of the signal')
+		self.fft_canvas.setXRange(0,60)
+		self.fft_canvas.setYRange(-1.5,2)
+		self.fft_canvas.setLogMode(y=True)
+		self.fft_canvas.disableAutoRange()
 
 
 		streamer.new_data.connect(self.plot_data)
@@ -56,27 +71,14 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 	def start_streamer(self):
 		self.streamer.run()
 
-	@pyqtSlot(np.ndarray)
+	@pyqtSlot('PyQt_PyObject')
 	def plot_data(self,data):
 		global app
-		data = self.smoothing(data)
-		i = 1
-		# channel1 = data[0]
-		# channel2 = data[1]
-		# channel3 = data[2]
-		# channel4 = data[3]
-		# channel5 = data[4]
-		# channel6 = data[5]
-		# channel7 = data[6]
-		# channel8 = data[7]
-		i = 0
-		for i,channel in enumerate(data):
-			self.channel_curves[i].setData(x=self.f[0:60],y=channel[0:60])
+
+		fft_data = self.smoothing(data.fft_data)						#smooth fft data
+		for i,channel in enumerate(fft_data):
+			self.fft_channel_curves[i].setData(x=self.f[0:60],y=channel[0:60])
 			i+=1
-		# for channel in data:
-		# 	curve = 'p' + str(i)
-		# 	self.curve.setData(x=self.f[0:60],y=channel[0:60])
-		# 	i+=1
 		app.processEvents()
 		print("Sup friend")
 
@@ -100,16 +102,15 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 				i+=1
 			return data
 
-
-		
-
-
-
-
-
 class Streamer(QThread):
 	'Streamer object to simulate EEG data streaming'
-	new_data = pyqtSignal(np.ndarray)
+
+	#this creates a record class: mutable named tuple to hold all of the data of one data window
+	Data_Return = recordclass('Data_Return', 'raw_data filtered_data rms fft_data')
+	data_return = Data_Return([],[],[],[])
+
+	# This defines a signal called 'new_data' that takes a 'Data_Return' type argument
+	new_data = pyqtSignal(Data_Return)
 
 	def __init__(self,fs_Hz, filters):
 		QThread.__init__(self)
@@ -117,6 +118,7 @@ class Streamer(QThread):
 		self.fs_Hz = fs_Hz
 		self.FIRST_BUFFER = True
 		self.filters = filters
+
 
 	def __del__(self):
 		self.wait()
@@ -151,7 +153,7 @@ class Streamer(QThread):
 				self.sample_buffer(sample)
 				if i%10 is 0:
 					print("emit")
-					self.new_data.emit(self.processed_data)
+					self.new_data.emit(self.data_return)
 		# print("EEG Time: ", len(channel_data)/250)
 
 
@@ -160,27 +162,35 @@ class Streamer(QThread):
 	def init_buffer(self,sample):
 		self.data.append(sample)
 		if len(self.data) == 250: #ths is the size of the sample buffer
+			# put the full window of data in data_return
+			self.data_return.raw_data = self.data
 
 			#reformat data for processing
 			data = np.asarray(list(zip(*self.data))) #change that format of data to [channels, samples] for processed
 			data = data.astype(np.float) #change the contents of the data to float for processed
 			if FILTER is True:
-				self.processed_data = self.filters.receive_data(data)
+				self.data_return.filtered_data = self.filters.signal_filters(data)
 			self.FIRST_BUFFER = False
-
-			# thread = DataThread()
-
 
 	def sample_buffer(self,sample):
 		self.data.pop(0)
 		self.data.append(sample)
 
+		# put the full window of data in data_return
+		self.data_return.raw_data = self.data
+
 		#reformat data for processing
 		data = np.asarray(list(zip(*self.data))) #change that format of data to [channels, samples] for processed
 		data = data.astype(np.float) #change the contents of the data to float for processed
 
+
+		# SEND FOR PROCESSING AND ANALYSIS
 		if FILTER is True:
-			self.processed_data = self.filters.receive_data(data)
+			self.data_return.filtered_data = self.filters.signal_filters(data)
+		# FFT (used for FFT plot. It is always computed, and uses filtered data)
+		self.data_return.fft_data = self.filters.fft(self.data_return.filtered_data)
+		# RMS (used for EEG trace. It is always computed, and uses filtered data)
+		self.data_return.rms = self.filters.rms(self.data_return.filtered_data)
 
 class Filters:
 	'Class containing EEG filtering and analysis tools' 
@@ -191,32 +201,30 @@ class Filters:
 	def __init__(self,fs_Hz,filter_types):
 		self.fs_Hz = fs_Hz #setting the sample rate
 		self.processed_data = [] #creating an array for filtered data
+		
 		#determine which filters were called
 		for type in filter_types:
 			if type is "fft":
 				#notch and bandpass are pre-requisites for fft
-				self.NOTCH = False
-				self.BANDPASS = False
+				self.NOTCH = True
+				self.BANDPASS = True
 				self.FFT = True
 			elif type is "notch":
 				self.NOTCH = True
 			elif type is "bandpass":
 				self.BANDPASS = True
 
-	def receive_data(self,data):
+
+	def signal_filters(self,data):
 		# self.data = data
 		processed_data = data #processed_data initialized with data, it will then be sent through the filters
+		
+		# DATA FILTERS
 		if self.NOTCH is True:
 			processed_data = self.notch_filter(processed_data,60)
 		if self.BANDPASS is True:
 			processed_data = self.bandpass_filter(processed_data,1,50)
-		if self.FFT is True:
-			processed_data = self.fft(processed_data)
-			# print("before", processed_data)
-			# processed_data = np.reshape(processed_data,250)
-			# print("after", processed_data)
-			# time.sleep(5)
-		return processed_data
+		return data
 
 	def notch_filter(self,data,notch_Hz=60):
 		processed_data = np.empty([8,250])
@@ -244,13 +252,6 @@ class Filters:
 			i+=1
 		return processed_data
 
-
-	####################
-	# Hanning Window
-	# aka a hanning taper. This is a filter that tries to taper the data to zero at the edges
-	# 
-	# window = signal.hann()
-
 	def fft(self,data):
 		global fft_array
 		i=0
@@ -266,6 +267,17 @@ class Filters:
 			fft_array[i] = fft_data1
 			i+=1
 		return fft_array #fft computation and normalization
+
+	#calculates the root mean square, used for the voltage scroll plot
+	def rms(self,data):
+		# algorithm: x_rms = sqrt((1/n)((x_1)^2 + (x_2)^2 + ...+ (x_n)^2)))
+		rms = []
+		n = len(data[0]) #length of data
+		for channel in data:
+			channel_rms = np.sqrt(np.mean(np.square(channel)))
+			rms.append(channel_rms)
+		return rms
+
 
 def main():
 	global FILTER
@@ -293,13 +305,4 @@ if __name__ == '__main__':
 	form = None
 	app = None
 	fft_array = np.empty([8,250])
-
 	main()
-
-# display_plot = Plot()
-
-
-# display_plot.show()
-
-
-# test.file_input()

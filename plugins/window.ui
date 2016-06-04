@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1110</width>
-    <height>785</height>
+    <width>1400</width>
+    <height>969</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,8 +17,8 @@
    <widget class="QPushButton" name="pushButton">
     <property name="geometry">
      <rect>
-      <x>360</x>
-      <y>750</y>
+      <x>420</x>
+      <y>930</y>
       <width>431</width>
       <height>31</height>
      </rect>
@@ -27,13 +27,23 @@
      <string>Push Button!!</string>
     </property>
    </widget>
-   <widget class="PlotWidget" name="graphicsView">
+   <widget class="PlotWidget" name="fft">
     <property name="geometry">
      <rect>
-      <x>-5</x>
-      <y>0</y>
-      <width>1121</width>
-      <height>751</height>
+      <x>700</x>
+      <y>100</y>
+      <width>701</width>
+      <height>461</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="PlotWidget" name="data_scroll">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>20</y>
+      <width>701</width>
+      <height>911</height>
      </rect>
     </property>
    </widget>

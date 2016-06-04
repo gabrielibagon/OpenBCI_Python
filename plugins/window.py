@@ -25,15 +25,18 @@ except AttributeError:
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName(_fromUtf8("MainWindow"))
-        MainWindow.resize(1110, 785)
+        MainWindow.resize(1400, 969)
         self.centralwidget = QtGui.QWidget(MainWindow)
         self.centralwidget.setObjectName(_fromUtf8("centralwidget"))
         self.pushButton = QtGui.QPushButton(self.centralwidget)
-        self.pushButton.setGeometry(QtCore.QRect(360, 750, 431, 31))
+        self.pushButton.setGeometry(QtCore.QRect(420, 930, 431, 31))
         self.pushButton.setObjectName(_fromUtf8("pushButton"))
-        self.graphicsView = PlotWidget(self.centralwidget)
-        self.graphicsView.setGeometry(QtCore.QRect(-5, 0, 1121, 751))
-        self.graphicsView.setObjectName(_fromUtf8("graphicsView"))
+        self.fft = PlotWidget(self.centralwidget)
+        self.fft.setGeometry(QtCore.QRect(700, 100, 701, 461))
+        self.fft.setObjectName(_fromUtf8("fft"))
+        self.data_scroll = PlotWidget(self.centralwidget)
+        self.data_scroll.setGeometry(QtCore.QRect(0, 20, 701, 911))
+        self.data_scroll.setObjectName(_fromUtf8("data_scroll"))
         MainWindow.setCentralWidget(self.centralwidget)
 
         self.retranslateUi(MainWindow)
