@@ -40,9 +40,19 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		self.setupUi(self)
 
 
-		# GENERAL SETUP
-		def key(event):
-			print("pressed", repr(event.char))
+		# GENERAL SETUP 
+
+		# center the screen
+		geometry = self.frameGeometry()
+		cp = QtGui.QDesktopWidget().availableGeometry().center()
+		geometry.moveCenter(cp)
+		self.move(geometry.topLeft())
+
+		#resize
+		# view = pg.GraphicsView()
+		# layout = pg.GraphicsLayout()
+		# view.setCentralItem(layout)
+		# view.showMaximized()
 
 
 		#################################################################
@@ -50,7 +60,7 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 
 		# 	if self.channels_to_display[i]:
 		scroll_widget = self.scroll_plot
-		scroll_widget.setXRange(-5,0, padding=0)
+		scroll_widget.setXRange(-5,0, padding=.0001)
 		scroll_widget.setYRange(-50,2100)
 		# scroll_widget.setLabel('left')
 		scroll_widget.getAxis('left').setWidth((0))
@@ -71,7 +81,7 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		# self.p2.setData(x=[10,20,30,40], y=[1,1,1,1])
 
 		# PARAMETERS FOR FFT PLOT
-		self.fft_canvas.setLabel('left','Amplitude')
+		self.fft_canvas.setLabel('left','Power','uV per bin')
 		self.fft_canvas.setLabel('bottom','Frequency','Hz')
 		self.fft_canvas.setWindowTitle('Magnitude spectrum of the signal')
 		self.fft_canvas.setXRange(0,60,padding=0)
@@ -141,9 +151,9 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 				i+=1
 			return data
 
-	def close_event(self,even):
-		self.close()
-
+	def closeEvent(self,event):
+		self.streamer.stop()
+        
 class Streamer(QThread):
 	'Streamer object to simulate EEG data streaming'
 
@@ -163,11 +173,14 @@ class Streamer(QThread):
 		self.filters = filters
 
 
-	def __del__(self):
-		self.wait()
+	# def __del__(self):
+	# 	self.wait()
 
 	def run(self):
 		self.file_input()
+
+	def stop(self):
+		sys.exit()
 
 	def file_input(self):
 		global form
@@ -339,9 +352,8 @@ def main():
 		app = QtGui.QApplication(sys.argv)  # new instance of QApplication
 		form = Plot(streamer)				# set form to be Plot()
 		form.show()							# Show the form
-		# form.start_streamer()
-		run = app.exec_()							# execute the app
-		sys.exit(run)
+		sys.exit(app.exec_())				# execute the app
+		
 	# np.savetxt('fft_python_check.txt', streamer.processed_data,delimiter=',')
 	print('ready 2 exit')
 	
