@@ -19,6 +19,7 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		#pyqtgraph setup
 		global form
 		global new_data
+		global app
 		self.processed_data = []
 		self.streamer = streamer
 		self.N = 250
@@ -31,34 +32,35 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		self.fft_channel_curves = []
 		self.scroll_curves = []
 		self.scroll_plotted_data = [[0]*250]*8
+		self.channels_to_display = [True,True,True,True,True,True,True,True]
 
 		################################################################
 		# INITIALIZE THE GUI
 		super(self.__class__,self).__init__()
 		self.setupUi(self)
 
+
 		# GENERAL SETUP
+		def key(event):
+			print("pressed", repr(event.char))
+
 
 		#################################################################
 		# DATA SCROLL
 
-		self.scroll_grid_canvas = self.scroll_grid
-
+		# 	if self.channels_to_display[i]:
+		scroll_widget = self.scroll_plot
+		scroll_widget.setXRange(-5,0, padding=0)
+		scroll_widget.setYRange(-50,2100)
+		# scroll_widget.setLabel('left')
+		scroll_widget.getAxis('left').setWidth((0))
+		scroll_widget.setLabel('bottom','Time','Seconds')
+		scroll_widget.plot()
 		for i in range(self.number_of_channels):
-			var_name = 'scroll_ch' + str(i+1)
-			# print(self.scroll_grid)
-			scroll_widget = self.scroll_grid_canvas.itemAt(i).widget()
-
-			# scroll_widget.setLabel('bottom','Time','Seconds')
-			# scroll_widget.setLabel('left','RMS', 'uV')
-			scroll_widget.setXRange(-5,0)
-			scroll_widget.setYRange(-100,100)
-			# scroll_widget.disableAutoRange()
-			scroll_widget.plot()
-
-			# add to curves list
 			self.scroll_curves.append(scroll_widget.plot())
-		
+
+			# self.scroll_curves.append(scroll_widget.plot())
+
 
 
 		#################################################################
@@ -69,16 +71,17 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		# self.p2.setData(x=[10,20,30,40], y=[1,1,1,1])
 
 		# PARAMETERS FOR FFT PLOT
-		self.fft_canvas.setLabel('left','Amplittude','uV')
+		self.fft_canvas.setLabel('left','Amplitude')
 		self.fft_canvas.setLabel('bottom','Frequency','Hz')
 		self.fft_canvas.setWindowTitle('Magnitude spectrum of the signal')
-		self.fft_canvas.setXRange(0,60)
+		self.fft_canvas.setXRange(0,60,padding=0)
 		self.fft_canvas.setYRange(-1.5,2)
 		self.fft_canvas.setLogMode(y=True)
+		# self.fft_canvas.getAxis('left').setScale(1)
 		self.fft_canvas.disableAutoRange()
 
 
-		streamer.new_data.connect(self.plot_data)
+		streamer.new_fft_data.connect(self.plot_data)
 
 		self.pushButton.clicked.connect(lambda: self.start_streamer())
 		
@@ -93,38 +96,30 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 		fft_data = self.smoothing(data.fft_data)						#smooth fft data
 		for i,channel in enumerate(fft_data):
 			# print(self.fft_channel_curves[i])
-			self.fft_channel_curves[i].setData(x=self.f[0:60],y=channel[0:60])
+			if self.channels_to_display[i]:
+				self.fft_channel_curves[i].setData(x=self.f[0:60],y=channel[0:60])
+			else:
+				self.fft_channel_curves[i].setData(x=[0],y=[0])
 			i+=1
 
 
 
 		# SCROLL PLOT
 		for i,channel in enumerate(data.filtered_data):
-			# print("LEN OF RAW ", len(data.filtered_data))
-			# print('LEN OF DATA[0]',len(data.filtered_data[0]))
-			# print('CHANNEELELELELE',channel)
-			#x-data is time
 			temp_scroll_data_buffer = []
 			temp_scroll_data_buffer.append(channel[i]) #first spot for new data point
 			for j in range(len(self.scroll_plotted_data[0])-1):
-				# print('i',i)
-				# print('j',j)
-				# print('scroll',len(self.scroll_plotted_data))
-				# print('scroll[0]',len(self.scroll_plotted_data[0]))
-				# print(self.scroll_plotted_data[i])
-				# print(self.scroll_plotted_data[i][j])
 				temp_scroll_data_buffer.append(self.scroll_plotted_data[i][j])
-				# print('scroll points',self.scroll_plotted_data[i][j])
 			self.scroll_plotted_data[i] = temp_scroll_data_buffer
 			current_curve = self.scroll_curves[i]
-			current_curve.setData(x=self.scroll_time_axis,y=self.scroll_plotted_data[i])
+			if self.channels_to_display[i]:
+				current_curve.setData(x=self.scroll_time_axis,y=([point+(300*i) for point in self.scroll_plotted_data[i]]))
+			else:
+				current_curve.setData(x=[0],y=[0])
 			i+=1
 
 		app.processEvents()
-		print("Sup friend")
-
-	# def scroll_plot(self,data):
-	# def fft_plot(self,data):
+		# print("Sup friend")
 
 	# Function used to smooth the fft plot
 	def smoothing(self,data):
@@ -146,6 +141,9 @@ class Plot(QtGui.QMainWindow, window.Ui_MainWindow):
 				i+=1
 			return data
 
+	def close_event(self,even):
+		self.close()
+
 class Streamer(QThread):
 	'Streamer object to simulate EEG data streaming'
 
@@ -154,7 +152,8 @@ class Streamer(QThread):
 	data_return = Data_Return([],[],[],[])
 
 	# This defines a signal called 'new_data' that takes a 'Data_Return' type argument
-	new_data = pyqtSignal(Data_Return)
+	new_fft_data = pyqtSignal(Data_Return)
+	new_scroll_data = pyqtSignal(Data_Return)
 
 	def __init__(self,fs_Hz, filters):
 		QThread.__init__(self)
@@ -188,16 +187,17 @@ class Streamer(QThread):
 			print(i)
 			# time.sleep(0.0035)
 			end = time.time()
-			print("time it should be: ", i/250, " SECONDS")
-			print("My Program time: ",end-start)
+			# print("time it should be: ", i/250, " SECONDS")
+			# print("My Program time: ",end-start)
 			#New array of each sample
 			if self.FIRST_BUFFER is True:
 				self.init_buffer(sample)
 			else:
 				self.sample_buffer(sample)
-				if i%1 is 0:
-					print("emit")
-					self.new_data.emit(self.data_return)
+				if i%10 is 0:
+					# print("emit")
+					self.new_fft_data.emit(self.data_return)
+				# self.new_scroll_data.emit(self.data_return)
 		# print("EEG Time: ", len(channel_data)/250)
 
 
@@ -340,8 +340,11 @@ def main():
 		form = Plot(streamer)				# set form to be Plot()
 		form.show()							# Show the form
 		# form.start_streamer()
-		app.exec_()							# execute the app
+		run = app.exec_()							# execute the app
+		sys.exit(run)
 	# np.savetxt('fft_python_check.txt', streamer.processed_data,delimiter=',')
+	print('ready 2 exit')
+	
 
 	print("READY")
 

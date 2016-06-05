@@ -847,14 +847,14 @@
    <widget class="QPushButton" name="pushButton">
     <property name="geometry">
      <rect>
-      <x>420</x>
+      <x>610</x>
       <y>930</y>
-      <width>431</width>
+      <width>171</width>
       <height>31</height>
      </rect>
     </property>
     <property name="text">
-     <string>Push Button!!</string>
+     <string>Stream</string>
     </property>
    </widget>
    <widget class="PlotWidget" name="fft">
@@ -867,44 +867,15 @@
      </rect>
     </property>
    </widget>
-   <widget class="QWidget" name="gridLayoutWidget">
+   <widget class="PlotWidget" name="scroll_plot">
     <property name="geometry">
      <rect>
-      <x>10</x>
-      <y>20</y>
-      <width>691</width>
-      <height>911</height>
+      <x>11</x>
+      <y>30</y>
+      <width>689</width>
+      <height>901</height>
      </rect>
     </property>
-    <layout class="QGridLayout" name="scroll_grid">
-     <property name="topMargin">
-      <number>20</number>
-     </property>
-     <item row="6" column="0">
-      <widget class="PlotWidget" name="scroll_ch7"/>
-     </item>
-     <item row="2" column="0">
-      <widget class="PlotWidget" name="scroll_ch3"/>
-     </item>
-     <item row="1" column="0">
-      <widget class="PlotWidget" name="scroll_ch2"/>
-     </item>
-     <item row="3" column="0">
-      <widget class="PlotWidget" name="scroll_ch4"/>
-     </item>
-     <item row="4" column="0">
-      <widget class="PlotWidget" name="scroll_ch5"/>
-     </item>
-     <item row="0" column="0">
-      <widget class="PlotWidget" name="scroll_ch1"/>
-     </item>
-     <item row="5" column="0">
-      <widget class="PlotWidget" name="scroll_ch6"/>
-     </item>
-     <item row="7" column="0">
-      <widget class="PlotWidget" name="scroll_ch8"/>
-     </item>
-    </layout>
    </widget>
   </widget>
  </widget>
