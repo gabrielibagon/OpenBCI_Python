@@ -27,6 +27,8 @@ import threading
 import sys
 import pdb
 import glob
+import serial.tools.list_ports
+
 
 SAMPLE_RATE = 250.0  # Hz
 START_BYTE = 0xA0  # start of data packet
@@ -67,11 +69,12 @@ class OpenBCIBoard(object):
   """
 
   def __init__(self, port=None, baud=115200, filter_data=True,
-    scaled_output=True, daisy=False, log=True, timeout=None):
+    scaled_output=True, daisy=None, log=True, timeout=None):
     self.log = log # print_incoming_text needs log
     self.streaming = False
     self.baudrate = baud
     self.timeout = timeout
+    self.daisy = daisy
     if not port:
       port = self.find_port()
     self.port = port
@@ -84,19 +87,21 @@ class OpenBCIBoard(object):
     #Initialize 32-bit board, doesn't affect 8bit board
     self.ser.write(b'v');
 
-
     #wait for device to be ready
     time.sleep(1)
-    self.print_incoming_text()
+    self.print_incoming_text() #print board identification text. Daisy detection occurs in this method.
 
     self.streaming = False
     self.filtering_data = filter_data
     self.scaling_output = scaled_output
     self.eeg_channels_per_sample = 8 # number of EEG channels per sample *from the board*
     self.aux_channels_per_sample = 3 # number of AUX channels per sample *from the board*
-    self.read_state = 0
-    self.daisy = daisy
+    self.read_state = 0 
+    if self.daisy is None:
+      self.daisy = False
+
     self.last_odd_sample = OpenBCISample(-1, [], []) # used for daisy
+
     self.log_packet_count = 0
     self.attempt_reconnect = False
     self.last_reconnect = 0
@@ -320,6 +325,8 @@ class OpenBCIBoard(object):
       while '$$$' not in line:
         c = self.ser.read().decode('utf-8')
         line += c
+        if "On Daisy" in line:
+          self.daisy = True
       print(line);
     else:
       self.warn("No Message")
@@ -328,8 +335,10 @@ class OpenBCIBoard(object):
     """
 
     When automatically detecting port, parse the serial return for the "OpenBCI" ID.
+    Also auto-detects the daisy.
 
     """
+    board = False
     line = ''
     #Wait for device to send data
     time.sleep(2)
@@ -343,6 +352,30 @@ class OpenBCIBoard(object):
         line += c
       if "OpenBCI" in line:
         return True
+      # if "On Daisy" in line:
+      #   self.daisy = True
+    return False
+
+  def daisy_id(self):
+    """
+
+    When automatically detecting port, parse the serial return for the "OpenBCI" ID.
+
+    """
+    line = ''
+    #Wait for device to send data
+    # time.sleep(2)
+
+    
+    # if self.ser.inWaiting():
+    #   line = ''
+    #   c = ''
+    #  #Look for end sequence $$$
+    #   while '$$$' not in line:
+    #     c = self.ser.read().decode('utf-8')
+    #     line += c
+    #   if "On Daisy" in line:
+    #     return True
     return False
 
   def print_register_settings(self):
@@ -544,16 +577,14 @@ class OpenBCIBoard(object):
         self.ser.write(b'i')
 
   def find_port(self):
-    # Finds the serial port names
-    if sys.platform.startswith('win'):
-      ports = ['COM%s' % (i+1) for i in range(256)]
-    elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
-      ports = glob.glob('/dev/ttyUSB*')
-    elif sys.platform.startswith('darwin'):
-      ports = glob.glob('/dev/tty.usbserial*')
-    else:
-      raise EnvironmentError('Error finding ports on your operating system')
+    try:
+      temp_port_list = serial.tools.list_ports.comports()
+    except OSError:
+      raise OSError('Serial port not found! Try entering your port manually.')
+    ports = [i[0] for i in temp_port_list][::-1]
+    
     openbci_port = ''
+    print(ports)
     for port in ports:
       try:
         s = serial.Serial(port= port, baudrate = self.baudrate, timeout=self.timeout)
@@ -575,5 +606,14 @@ class OpenBCISample(object):
     self.id = packet_id;
     self.channel_data = channel_data;
     self.aux_data = aux_data;
+
+
+'''
+def handle_sample(sample):
+  print(sample.channels)
+board = bci.OpenBCIBoard()
+board.print_register_settings()
+board.start(handle_sample)
+'''
 
 
