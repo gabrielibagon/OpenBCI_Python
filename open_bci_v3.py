@@ -25,7 +25,6 @@ import atexit
 import logging
 import threading
 import sys
-import pdb
 import glob
 import serial.tools.list_ports
 
@@ -584,7 +583,6 @@ class OpenBCIBoard(object):
     ports = [i[0] for i in temp_port_list][::-1]
     
     openbci_port = ''
-    print(ports)
     for port in ports:
       try:
         s = serial.Serial(port= port, baudrate = self.baudrate, timeout=self.timeout)
