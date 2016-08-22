@@ -31,16 +31,16 @@ class IPluginExtended(IPlugin):
     self.is_activated = True
     self.activate()
     # tell outside world if init went good or bad
-    return  self.is_activated
+    return(self.is_activated)
    
   # inherited from IPlugin
   def activate(self):
-    print "Plugin %s activated." % (self.__class__.__name__)
+    print("Plugin %s activated." % (self.__class__.__name__))
   
   # inherited from IPlugin
   def deactivate(self):
-    print "Plugin %s deactivated." % (self.__class__.__name__)
+    print("Plugin %s deactivated." % (self.__class__.__name__))
   
   # plugins that require arguments should implement this method
   def show_help(self):
-    print "I, %s, do not need any parameter." % (self.__class__.__name__)
+    print("I, %s, do not need any parameter." % (self.__class__.__name__))

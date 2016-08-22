@@ -2,7 +2,7 @@ import plugin_interface as plugintypes
 
 class PluginPrint(plugintypes.IPluginExtended):
 	def activate(self):
-		print "Print activated"
+		print("Print activated")
 	
 	# called with each new sample
 	def __call__(self, sample):
