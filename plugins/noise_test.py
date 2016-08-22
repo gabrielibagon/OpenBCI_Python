@@ -14,7 +14,7 @@ class PluginNoiseTest(plugintypes.IPluginExtended):
 		if elapsed_time > self.polling_interval:
 			channel_noise_power = np.divide(self.diff,self.sample_count)
 
-			print (channel_noise_power)
+			print(channel_noise_power)
 			self.diff = np.zeros(self.eeg_channels)
 			self.last_report = timeit.default_timer()
 
@@ -35,6 +35,6 @@ class PluginNoiseTest(plugintypes.IPluginExtended):
 		
 		
 	def show_help(self):
-		print "Optional argument: polling_interval -- in seconds, default: 10. \n \
-		Returns the power of the system noise.\n \
-		NOTE: The reference and channel should have the same input signal."
+		print("Optional argument: polling_interval -- in seconds, default: 10. \n" + \
+		"Returns the power of the system noise.\n" + \
+		"NOTE: The reference and channel should have the same input signal.")

@@ -31,7 +31,7 @@ class StreamerOSC(plugintypes.IPluginExtended):
 		if len(self.args) > 2:
 			self.address = self.args[2]
 		# init network
-		print "Selecting OSC streaming. IP: ", self.ip, ", port: ", self.port, ", address: ", self.address
+		print("Selecting OSC streaming. IP: ", self.ip, ", port: ", self.port, ", address: ", self.address)
 		self.client = OSCClient()
 		self.client.connect( (self.ip, self.port) )
 
@@ -50,7 +50,7 @@ class StreamerOSC(plugintypes.IPluginExtended):
 			return
 
 	def show_help(self):
-	  	print """Optional arguments: [ip [port [address]]]
+	  	print("""Optional arguments: [ip [port [address]]]
 	  	\t ip: target IP address (default: 'localhost')
 	  	\t port: target port (default: 12345)
-	  	\t address: select target address (default: '/openbci')"""
+	  	\t address: select target address (default: '/openbci')""")
